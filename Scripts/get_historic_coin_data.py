@@ -44,7 +44,6 @@ def save_historic_data_to_db(session: Session, coin_id: int, valid_entries: list
     Save valid historical data to the database in smaller batches.
     """
     batch = []
-    local_tz = pytz.timezone('Europe/Lisbon')
     for i, entry in enumerate(valid_entries):
         timestamp = datetime.utcfromtimestamp(entry["time"])
         local_timestamp = timestamp.astimezone(LocalTz)
