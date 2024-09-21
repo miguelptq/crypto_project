@@ -1,5 +1,5 @@
 ﻿import requests
-from datetime import datetime
+from datetime import datetime,timedelta
 
 
 def send_message(content, webHook, username, type, embed = False, color = "", hour = 0, daily = False):
@@ -10,6 +10,8 @@ def send_message(content, webHook, username, type, embed = False, color = "", ho
     if embed:
         now = datetime.now()
         run_time = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+        if hour == 23:
+            run_time -= timedelta(hours=1)
         color_map = {
             "red": 15158332,     # Red color
             "green": 3066993,    # Green color
