@@ -34,6 +34,9 @@ now_utc = datetime.now(pytz.utc)
 now_local = now_utc.astimezone(LocalTz)
 
 
+def get_session():
+    return SessionLocal()
+
 def make_api_request(url, params):
     """Make an API request with the given URL and parameters."""
     response = requests.get(url, params=params)
@@ -291,7 +294,7 @@ def fetch_paginated_data_historic_hourly(
 def main(coin: Coin, hourly = False):
     
     try:
-        session = SessionLocal()
+        session = get_session()
         coin = session.query(Coin).filter(Coin.id == coin.id).first()
         symbol = coin.symbol
         tsym = "USD"
