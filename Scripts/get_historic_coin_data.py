@@ -26,7 +26,9 @@ API_KEY = os.getenv("API_KEY")
 API_HISTORIC_BASE_URL = os.getenv("API_HISTORIC_BASE_URL")
 API_HISTORIC_BASE_URL_HOURLY = os.getenv("API_HISTORIC_BASE_URL_HOURLY")
 CurrentStartDate = datetime.combine(datetime.today(), datetime.min.time())
+
 CurrentStartDateTimeStamp = int(CurrentStartDate.timestamp())
+
 LocalTz = pytz.timezone('Europe/London')
 now_utc = datetime.now(pytz.utc)
 now_local = now_utc.astimezone(LocalTz)
@@ -185,8 +187,7 @@ def fetch_paginated_data_historic_hourly(
             session.add(coin_historic)  # Add the new record to the session
         # Determine the Unix timestamp for the last saved hour
         if last_saved_hour is not None:
-            hour_to_use = last_saved_hour if last_saved_hour != 22 else 22
-            last_saved_datetime = (now_local if hour_to_use != 22 else previous_day_local).replace(hour=hour_to_use, minute=0, second=0, microsecond=0)
+            last_saved_datetime = now_local.replace(hour=last_saved_hour, minute=0, second=0, microsecond=0) + timedelta(hours=1)
             start_from_unix = int(last_saved_datetime.timestamp())
         else:
             start_from_unix = CurrentStartDateTimeStamp
@@ -219,7 +220,7 @@ def fetch_paginated_data_historic_hourly(
                 current_time = datetime.now()
                 start_of_current_time = current_time.replace(minute=0,second=0)
                 limit_hour_unix = int(start_of_current_time.timestamp())
-                if entry_unix_time > start_from_unix and entry_unix_time < limit_hour_unix and(last_saved_hour is None or utc_time_entry.hour != last_saved_hour):
+                if entry_unix_time >= start_from_unix and entry_unix_time < limit_hour_unix and(last_saved_hour is None or utc_time_entry.hour != last_saved_hour):
                     if (utc_time_entry.hour) == 23:
                         params = {
                             "fsym": fsym,
