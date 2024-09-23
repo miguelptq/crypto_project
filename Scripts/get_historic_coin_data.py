@@ -25,13 +25,12 @@ else:
 API_KEY = os.getenv("API_KEY")
 API_HISTORIC_BASE_URL = os.getenv("API_HISTORIC_BASE_URL")
 API_HISTORIC_BASE_URL_HOURLY = os.getenv("API_HISTORIC_BASE_URL_HOURLY")
-CurrentStartDate = datetime.combine(datetime.today(), datetime.min.time())
-
-CurrentStartDateTimeStamp = int(CurrentStartDate.timestamp())
 
 LocalTz = pytz.timezone('Europe/London')
 now_utc = datetime.now(pytz.utc)
 now_local = now_utc.astimezone(LocalTz)
+CurrentStartDate = now_local.replace(hour=0,minute=0,second=0)
+CurrentStartDateTimeStamp = int(CurrentStartDate.timestamp())
 
 
 def get_session():
