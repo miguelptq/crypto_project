@@ -15,6 +15,7 @@ import os
 from Scripts.get_historic_coin_data import main as get_coin_historic
 from Scripts.add_coin import add_coin
 from contextlib import contextmanager
+from dateutil.relativedelta import relativedelta
 
 # Load environment variables from .env file
 ENVIROMENT = os.getenv('ENVIRONMENT', 'development')
@@ -46,55 +47,98 @@ def session_scope():
     finally:
         session.close()
 
+def get_month_start_dates(start_date, end_date):
+    current_date = start_date.replace(day=1)
+    month_start_dates = []
+    
+    while current_date <= end_date:
+        month_start_dates.append(current_date)
+        current_date += relativedelta(months=1)
+    
+    return month_start_dates
 
-def create_csv(filename, data):
-    with open(filename, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(["Date", "Open", "Close"])
-        for row in data:
-            writer.writerow([row['date'], row['open'], row['close']])
+def get_first_open_and_last_close(session, coin_id, month_start_date):
+    # Get the first day of the month
+    first_day = month_start_date
+    # Get the last day of the month
+    last_day = month_start_date + relativedelta(months=1) - relativedelta(days=1)
+    
+    # Convert to Unix timestamps
+    start_timestamp = int(first_day.timestamp())
+    end_timestamp = int(last_day.timestamp())
+
+    # Get first record (open of the month)
+    first_record = session.query(CoinHistoric).filter(
+        CoinHistoric.coin_id == coin_id,
+        CoinHistoric.timestamp >= start_timestamp,
+        CoinHistoric.timestamp < start_timestamp + 86400  # Start of the next day (midnight)
+    ).order_by(CoinHistoric.timestamp.asc()).first()
+
+    # Get last record (close of the month)
+    last_record = session.query(CoinHistoric).filter(
+        CoinHistoric.coin_id == coin_id,
+        CoinHistoric.timestamp >= start_timestamp,
+        CoinHistoric.timestamp <= end_timestamp,  # End of the last day of the month
+        CoinHistoric.close > 0,
+        CoinHistoric.open > 0
+    ).order_by(CoinHistoric.timestamp.desc()).first()
+
+    return first_record, last_record
+
+def create_csv_with_open_close(session, coin_id, start_date_obj, end_date_obj, csv_filename):
+    # Get all the start dates of each month
+    month_start_dates = get_month_start_dates(start_date_obj, end_date_obj)
+
+    # Create CSV file
+    with open(csv_filename, mode='w', newline='') as csv_file:
+        fieldnames = ['Month', 'Open', 'Close', 'Percentage Change']
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+
+        # Write the header
+        writer.writeheader()
+
+        # Loop through each month and get the data
+        for month_start_date in month_start_dates:
+            first_record, last_record = get_first_open_and_last_close(
+                session, coin_id, month_start_date
+            )
+
+            # Ensure that both records are found
+            if first_record and last_record:
+                open_value = first_record.open
+                close_value = last_record.close
+
+                # Calculate the percentage change
+                percentage_change = ((close_value - open_value) / open_value) * 100
+
+                # Write row to CSV
+                writer.writerow({
+                    'Month': month_start_date.strftime('%Y-%m'),
+                    'Open': open_value,
+                    'Close': close_value,
+                    "Percentage Change": f"{percentage_change:.2f}%",
+                })
 
 def validate_coin(coin,session: Session):
     coin = session.query(Coin).filter(Coin.symbol== coin).first()
     return coin
 
 
-csv_filename = f"coin_data_{datetime.now().strftime('%Y-%m-%d')}.csv"
-coin_name = "BTC"
-historic_data = [
-    {"date": "2023-09-15", "open": "45,000", "close": "46,500"},
-    {"date": "2023-09-16", "open": "46,500", "close": "47,200"},
-    {"date": "2023-09-17", "open": "47,200", "close": "46,800"},
-    {"date": "2023-09-18", "open": "46,800", "close": "48,000"},
-    {"date": "2023-09-19", "open": "48,000", "close": "47,500"},
-    {"date": "2023-09-20", "open": "47,500", "close": "48,200"},
-    {"date": "2023-09-21", "open": "48,200", "close": "49,000"},
-]
-create_csv(csv_filename, historic_data)
-
-
 # Sync and register the slash command
-
-""" guild = discord.Object(id=1230133817537331331)  # Replace with your guild ID
-try:
-    synced = await bot.tree.sync(guild=guild)
-    print(f"Synced {len(synced)} commands in the guild: {[cmd.name for cmd in synced]}")
-except Exception as e:
-    print(f"Error syncing commands: {e}") """
 
 
 # Define the slash command
 # Define a slash command with interval choices
-@bot.tree.command(name="daily_report", description="Sends a daily report with open and close coin values.")
-@app_commands.describe(coin="The coin to report (e.g., BTC, ETH)", start_date="Start date (dd/mm/yyyy)", end_date="End date (dd/mm/yyyy)", interval="Choose an interval")
+@bot.tree.command(name="report", description="Sends a monthly report with open and close coin values.")
+@app_commands.describe(coin="The coin to report (e.g., BTC, ETH)", start_date="Start date (mm/yyyy)", end_date="End date (mm/yyyy)", interval="Choose an interval")
 @app_commands.choices(interval=[
     app_commands.Choice(name="Daily", value="daily"),
     app_commands.Choice(name="Monthly", value="monthly"),
     app_commands.Choice(name="Yearly", value="yearly")
 ])
-async def daily_report(interaction: discord.Interaction, coin: str, start_date: str, end_date: str, interval: app_commands.Choice[str]):
-    """Sends a daily report with open and close coin values for the specified date range."""
-    print("daily_report command registered")  # Debugging line
+async def report(interaction: discord.Interaction, coin: str, start_date: str, end_date: str, interval: app_commands.Choice[str]):
+    """Sends a report with open and close coin values for the specified date range."""
+    print("report command registered")  # Debugging line
     
     await interaction.response.defer(thinking=True)  # Defer the response
 
@@ -109,7 +153,6 @@ async def daily_report(interaction: discord.Interaction, coin: str, start_date: 
                 msg = await bot.wait_for('message', check=check, timeout=30.0)
                 if msg.content.lower() == 'yes':
                     await interaction.followup.send(f"Please provide the webhook URL for {coin}:")
-                    
                     # Check for the webhook URL
                     def webhook_check(msg):
                         return msg.author == interaction.user and msg.channel == interaction.channel
@@ -119,7 +162,7 @@ async def daily_report(interaction: discord.Interaction, coin: str, start_date: 
                     
                     # Add the coin with the provided webhook
                     add_coin(coin.upper(), webhook_url)  # Pass session here if needed
-                    existing_coin = validate_coin(coin,session)
+                    existing_coin = validate_coin(coin.upper(),session)
                     if existing_coin:
                         await interaction.followup.send(f"{coin.upper()} was added successfully!")
                     else:
@@ -133,12 +176,16 @@ async def daily_report(interaction: discord.Interaction, coin: str, start_date: 
 
     # Convert the date strings to datetime objects
     try:
-        start_date_obj = datetime.strptime(start_date, "%d/%m/%Y")
-        end_date_obj = datetime.strptime(end_date, "%d/%m/%Y")
+        start_date_obj = datetime.strptime(start_date, "%m/%Y")
+        end_date_obj = datetime.strptime(end_date, "%m/%Y")
     except ValueError:
-        await interaction.followup.send("Invalid date format! Please use DD/MM/YYYY.")
+        await interaction.followup.send("Invalid date format! Please use MM/YYYY.")
         return  # Ensure no further responses happen
-    
+    with session_scope() as session:
+        existing_coin = validate_coin(coin.upper(),session)
+        coin_id = existing_coin.id
+    csv_filename = f'{coin.upper()}_{int(start_date_obj.timestamp())}_{int(end_date_obj.timestamp())}_monthly_open_close.csv'
+    create_csv_with_open_close(session, coin_id, start_date_obj, end_date_obj, csv_filename)
     # Create the embed message
     embed = discord.Embed(
         title=f"📈 {interval.name} Coin Report for {coin.upper()}",
@@ -147,17 +194,11 @@ async def daily_report(interaction: discord.Interaction, coin: str, start_date: 
         timestamp=datetime.now()
     )
 
-    for day in historic_data:
-        embed.add_field(
-            name=f"Date: {day['date']}",
-            value=f"**Open:** {day['open']} | **Close:** {day['close']}",
-            inline=False
-        )
-
     embed.set_footer(text="Data provided by Crypto Bot")
 
     await interaction.followup.send(embed=embed)  # Use followup here
     await interaction.followup.send(file=discord.File(csv_filename))  # Send CSV file as a followup
+    os.remove(csv_filename)
 
 
 @bot.tree.command(name="add_crypto", description="Add a new cryptocurrency to the database.")
@@ -181,8 +222,6 @@ async def add_crypto(interaction: discord.Interaction, symbol: str, webhook: str
 
 @bot.command()
 async def sync(ctx: commands.Context):
-    print(DISCORD_OWNER_ID)
-    print(ctx.author.id)
     if ctx.author.id == DISCORD_OWNER_ID:
         guild = discord.Object(id=DISCORD_SERVER_ID)  # Replace with your guild ID
         try:
