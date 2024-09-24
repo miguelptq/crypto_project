@@ -91,7 +91,7 @@ def create_csv_with_open_close(session, coin_id, start_date_obj, end_date_obj, c
 
     # Create CSV file
     with open(csv_filename, mode='w', newline='') as csv_file:
-        fieldnames = ['Month', 'Open', 'Close', 'Percentage Change']
+        fieldnames = ['Month','Year', 'Open', 'Close', 'Percentage Change']
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
 
         # Write the header
@@ -113,7 +113,8 @@ def create_csv_with_open_close(session, coin_id, start_date_obj, end_date_obj, c
 
                 # Write row to CSV
                 writer.writerow({
-                    'Month': month_start_date.strftime('%Y-%m'),
+                    'Month': month_start_date.strftime('%B'),
+                    'Year': month_start_date.strftime('%Y'),
                     'Open': open_value,
                     'Close': close_value,
                     "Percentage Change": f"{percentage_change:.2f}%",
