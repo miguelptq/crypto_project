@@ -164,10 +164,8 @@ def fetch_paginated_data_historic_hourly(
         last_saved_hour = None
         now = datetime.now(pytz.utc)
         previous_day = now - timedelta(days=1)
-        previous_day_local = now_local - timedelta(days=1)
         previous_day_start = previous_day.replace(hour=0,minute=0,second=0)
         previous_day_unixtime_stamp = int(previous_day_start.timestamp())
-
         # Initialize or load the hourly_historic field as a list
         if coin_historic and coin_historic.hourly_historic:
             hourly_historic_data = coin_historic.hourly_historic
