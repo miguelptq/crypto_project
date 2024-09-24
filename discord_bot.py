@@ -220,6 +220,7 @@ async def add_crypto(interaction: discord.Interaction, symbol: str, webhook: str
         else:
             await interaction.followup.send(f"The cryptocurrency `{symbol.upper()}` does not exist.")
 
+
 @bot.command()
 async def sync(ctx: commands.Context):
     if ctx.author.id == DISCORD_OWNER_ID:
@@ -229,6 +230,18 @@ async def sync(ctx: commands.Context):
             print(f"Synced {len(synced)} commands in the guild: {[cmd.name for cmd in synced]}")
         except Exception as e:
             print(f"Error syncing commands: {e}") 
+    else:
+        await ctx.reply("You are not the owner.")
+
+
+@bot.command()
+async def delete_commands(ctx: commands.Context):
+    if ctx.author.id == DISCORD_OWNER_ID:
+        guild = discord.Object(id=DISCORD_SERVER_ID)
+        commands = await bot.tree.fetch_commands(guild=guild)
+        for command in commands:
+            await bot.tree.remove_command(command.name, guild=guild)
+        await ctx.send("Commands have been deleted!")
     else:
         await ctx.reply("You are not the owner.")
 
