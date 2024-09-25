@@ -27,10 +27,6 @@ API_HISTORIC_BASE_URL = os.getenv("API_HISTORIC_BASE_URL")
 API_HISTORIC_BASE_URL_HOURLY = os.getenv("API_HISTORIC_BASE_URL_HOURLY")
 
 LocalTz = pytz.timezone('Europe/London')
-now_utc = datetime.now(pytz.utc)
-now_local = now_utc.astimezone(LocalTz)
-CurrentStartDate = now_local.replace(hour=0,minute=0,second=0)
-CurrentStartDateTimeStamp = int(CurrentStartDate.timestamp())
 
 
 def get_session():
@@ -67,7 +63,7 @@ def save_historic_data_to_db(session: Session, coin_id: int, valid_entries: list
         batch.clear()  # Clear the batch after committing
 
 
-def count_days_between_timestamps(startDate: int):
+def count_days_between_timestamps(startDate: int, CurrentStartDateTimeStamp: int):
     # Convert Unix timestamps to datetime objects
     current_timestamp = CurrentStartDateTimeStamp
     difference = current_timestamp - startDate
@@ -87,6 +83,7 @@ def fetch_paginated_data_historic(
     tsym: str,
     limit: int,
     total_days: int,
+    CurrentStartDateTimeStamp: int,
     make_historic: bool = True,
 ):
     toTs = int(time.time())  # Current timestamp (most recent data)
@@ -151,6 +148,7 @@ def fetch_paginated_data_historic_hourly(
     coin: Coin,
     fsym: str,
     tsym: str,
+    CurrentStartDateTimeStamp: int,
     make_historic: bool = True,
 ) -> None:
     to_ts = int(datetime.now(pytz.utc).timestamp())
@@ -161,8 +159,12 @@ def fetch_paginated_data_historic_hourly(
             (CoinHistoric.coin_id == coin.id) & 
             (CoinHistoric.timestamp == CurrentStartDateTimeStamp)
         ).first()
+       
         last_saved_hour = None
         now = datetime.now(pytz.utc)
+        now_local = now.astimezone(LocalTz)
+        if now_local.hour == 0:
+            now_local -= timedelta(hours=1)
         previous_day = now - timedelta(days=1)
         previous_day_start = previous_day.replace(hour=0,minute=0,second=0)
         previous_day_unixtime_stamp = int(previous_day_start.timestamp())
@@ -289,6 +291,12 @@ def fetch_paginated_data_historic_hourly(
 
     
 def main(coin: Coin, hourly = False):
+    now_utc = datetime.now(pytz.utc)
+    now_local = now_utc.astimezone(LocalTz)
+    if now_local.hour == 0:
+        now_local -= timedelta(hours=1)
+    CurrentStartDate = now_local.replace(hour=0,minute=0,second=0)
+    CurrentStartDateTimeStamp = int(CurrentStartDate.timestamp())
     
     try:
         session = get_session()
@@ -297,17 +305,17 @@ def main(coin: Coin, hourly = False):
         tsym = "USD"
         limit = 1500
     
-        total_days = count_days_between_timestamps(coin.last_time_tracked)
+        total_days = count_days_between_timestamps(coin.last_time_tracked, CurrentStartDateTimeStamp)
         if hourly:
             fetch_paginated_data_historic_hourly(
-                session, coin, symbol, tsym,True
+                session, coin, symbol, tsym, CurrentStartDateTimeStamp, True
             )
         else:
             fetch_paginated_data_historic(
-                session, coin, symbol, tsym, limit, total_days, True
+                session, coin, symbol, tsym, limit, total_days, CurrentStartDateTimeStamp, True
             )
     finally:
-        session.close()         
+        session.close()  
     
 
 
