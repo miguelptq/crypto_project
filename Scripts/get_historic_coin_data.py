@@ -189,6 +189,7 @@ def fetch_paginated_data_historic_hourly(
             session.add(coin_historic)  # Add the new record to the session
         # Determine the Unix timestamp for the last saved hour
         if last_saved_hour is not None:
+            
             last_saved_datetime = now_local.replace(hour=last_saved_hour, minute=0, second=0, microsecond=0) + timedelta(hours=1)
             start_from_unix = int(last_saved_datetime.timestamp())
         else:
@@ -203,7 +204,7 @@ def fetch_paginated_data_historic_hourly(
         params = {
             "fsym": fsym,
             "tsym": tsym,
-            "limit": 24,
+            "limit": 10,
             "api_key": API_KEY,
             "toTs": unix_start_of_previous_hour,
         }
@@ -215,13 +216,13 @@ def fetch_paginated_data_historic_hourly(
             sorted_data = sorted(hourly_data, key=lambda x: x["time"])
             # Collect valid hourly entries
             last_entry_time = 0
+            current_time = datetime.now()
+            start_of_current_time = current_time.replace(minute=0,second=0)
+            limit_hour_unix = int(start_of_current_time.timestamp())
             for entry in sorted_data:
                 entry_time_dt = datetime.utcfromtimestamp(entry["time"]).replace(tzinfo=pytz.utc)
                 utc_time_entry = entry_time_dt.astimezone(LocalTz)
                 entry_unix_time = int(utc_time_entry.timestamp())
-                current_time = datetime.now()
-                start_of_current_time = current_time.replace(minute=0,second=0)
-                limit_hour_unix = int(start_of_current_time.timestamp())
                 if entry_unix_time >= start_from_unix and entry_unix_time < limit_hour_unix and(last_saved_hour is None or utc_time_entry.hour != last_saved_hour):
                     if (utc_time_entry.hour) == 23:
                         params = {
@@ -234,12 +235,12 @@ def fetch_paginated_data_historic_hourly(
                         result = make_api_request(API_HISTORIC_BASE_URL, params)
                         if result["Response"] == "Success":
                             data = result["Data"]["Data"]
-                            for entry in data:
+                            for entry_day in data:
                                 if(entry["time"] == previous_day_unixtime_stamp):
-                                    coin_historic.close = entry['close']
-                                    coin_historic.open = entry['open']
-                                    coin_historic.high = entry['high']
-                                    coin_historic.low = entry['low']
+                                    coin_historic.close = entry_day['close']
+                                    coin_historic.open = entry_day['open']
+                                    coin_historic.high = entry_day['high']
+                                    coin_historic.low = entry_day['low']
                                     if coin_historic.open != 0:
                                         percentage_change = ((coin_historic.close - coin_historic.open)/( coin_historic.open)*100)
                                     else:
@@ -271,7 +272,7 @@ def fetch_paginated_data_historic_hourly(
                 elif last_entry["open"] < last_entry["close"]:
                     send_message(f"Open: {last_entry['open']}, Close: {last_entry['close']}. Price increased {percentage_change:.2f}%", coin.webhook_url, coin.name, 'historic', True, 'green',hour=last_entry_time.hour)
                 else:
-                    send_message(f"Open: {last_entry['open']}, Close: {last_entry['close']}. No change in price", coin.webhook_url, coin.name, 'historic', True, 'yellow',hour=utc_time_entry.hour)
+                    send_message(f"Open: {last_entry['open']}, Close: {last_entry['close']}. No change in price", coin.webhook_url, coin.name, 'historic', True, 'yellow',hour=last_entry_time.hour)
                 coin_historic.hourly_historic.extend(valid_entries)
                 session.flush()  # Ensure pending changes are sent to the DB
                 try:
