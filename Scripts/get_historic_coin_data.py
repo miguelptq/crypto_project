@@ -204,7 +204,7 @@ def fetch_paginated_data_historic_hourly(
         params = {
             "fsym": fsym,
             "tsym": tsym,
-            "limit": 10,
+            "limit": 24,
             "api_key": API_KEY,
             "toTs": unix_start_of_previous_hour,
         }
