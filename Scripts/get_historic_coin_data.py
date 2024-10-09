@@ -236,7 +236,7 @@ def fetch_paginated_data_historic_hourly(
                         if result["Response"] == "Success":
                             data = result["Data"]["Data"]
                             for entry_day in data:
-                                if(entry["time"] == previous_day_unixtime_stamp):
+                                if(entry_day["time"] == previous_day_unixtime_stamp):
                                     coin_historic.close = entry_day['close']
                                     coin_historic.open = entry_day['open']
                                     coin_historic.high = entry_day['high']
