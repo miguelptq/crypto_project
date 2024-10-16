@@ -225,32 +225,29 @@ def fetch_paginated_data_historic_hourly(
                 entry_unix_time = int(utc_time_entry.timestamp())
                 if entry_unix_time >= start_from_unix and entry_unix_time < limit_hour_unix and(last_saved_hour is None or utc_time_entry.hour != last_saved_hour):
                     if (utc_time_entry.hour) == 23:
-                        params = {
-                            "fsym": fsym,
-                            "tsym": tsym,
-                            "limit": 4,  # API returns 'limit+1' data points
-                            "api_key": API_KEY,
-                        }
+                        highest_high = max(data_historic["high"] for data_historic in hourly_historic_data)
+                        if entry["high"] > highest_high:
+                            highest_high = entry["high"]
+                        lowest_low = min(data_historic["low"] for data_historic in hourly_historic_data)
+                        if entry["low"] < lowest_low:
+                            lowest_low = entry["low"]
+                        first_open = hourly_historic_data[0]["open"]
+                        last_close = entry["close"]
 
-                        result = make_api_request(API_HISTORIC_BASE_URL, params)
-                        if result["Response"] == "Success":
-                            data = result["Data"]["Data"]
-                            for entry_day in data:
-                                if(entry_day["time"] == previous_day_unixtime_stamp):
-                                    coin_historic.close = entry_day['close']
-                                    coin_historic.open = entry_day['open']
-                                    coin_historic.high = entry_day['high']
-                                    coin_historic.low = entry_day['low']
-                                    if coin_historic.open != 0:
-                                        percentage_change = ((coin_historic.close - coin_historic.open)/( coin_historic.open)*100)
-                                    else:
-                                        percentage_change = 0
-                                    if coin_historic.open > coin_historic.close:
-                                        send_message(f"Daily Resume -> Open: {coin_historic.open}, Close: {coin_historic.close}.Price dropped {percentage_change:.2f}%", coin.webhook_url, coin.name, 'historic', True, 'red', daily=True)
-                                    elif coin_historic.open < coin_historic.close:
-                                        send_message(f"Daily Resume -> Open: {coin_historic.open}, Close: {coin_historic.close}. Price increased {percentage_change:.2f}%", coin.webhook_url, coin.name, 'historic', True, 'green', daily=True)
-                                    else:
-                                        send_message(f"Daily Resume -> Open: {coin_historic.open}, Close: {coin_historic.close}. No change in price!", coin.webhook_url, coin.name, 'historic', True, 'yellow', daily=True)
+                        coin_historic.close = last_close
+                        coin_historic.open = first_open
+                        coin_historic.high =highest_high
+                        coin_historic.low = lowest_low
+                        if coin_historic.open != 0:
+                            percentage_change = ((coin_historic.close - coin_historic.open)/( coin_historic.open)*100)
+                        else:
+                            percentage_change = 0
+                        if coin_historic.open > coin_historic.close:
+                            send_message(f"Daily Resume -> Open: {coin_historic.open}, Close: {coin_historic.close}.Price dropped {percentage_change:.2f}%", coin.webhook_url, coin.name, 'historic', True, 'red', daily=True)
+                        elif coin_historic.open < coin_historic.close:
+                            send_message(f"Daily Resume -> Open: {coin_historic.open}, Close: {coin_historic.close}. Price increased {percentage_change:.2f}%", coin.webhook_url, coin.name, 'historic', True, 'green', daily=True)
+                        else:
+                            send_message(f"Daily Resume -> Open: {coin_historic.open}, Close: {coin_historic.close}. No change in price!", coin.webhook_url, coin.name, 'historic', True, 'yellow', daily=True)
                     hour_entry = {
                         "hour": utc_time_entry.hour,
                         "high": entry["high"],
